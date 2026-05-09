@@ -2,7 +2,7 @@ module github.com/opentalon/opentalon-planner
 
 go 1.25.0
 
-require github.com/opentalon/opentalon v0.0.11
+require github.com/opentalon/opentalon v0.0.15
 
 require (
 	golang.org/x/net v0.43.0 // indirect
