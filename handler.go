@@ -34,6 +34,7 @@ type StepInfo struct {
 // CheckResult is the structured response from check_confirmation.
 type CheckResult struct {
 	RequiresConfirmation bool     `json:"requires_confirmation"`
+	ConfirmBeforeStep    int      `json:"confirm_before_step"` // index of first write step; -1 if none. Steps before this execute without confirmation.
 	Reason               string   `json:"reason"`
 	WriteActions         []string `json:"write_actions,omitempty"`
 }
@@ -168,18 +169,22 @@ func (h *Handler) CheckConfirmation(steps []StepInfo) CheckResult {
 	case "write_only":
 		return h.checkWriteOnly(steps)
 	default: // "always"
-		return CheckResult{RequiresConfirmation: true, Reason: "confirmation mode: always"}
+		return CheckResult{RequiresConfirmation: true, ConfirmBeforeStep: 0, Reason: "confirmation mode: always"}
 	}
 }
 
 func (h *Handler) checkWriteOnly(steps []StepInfo) CheckResult {
 	var writeActions []string
-	for _, step := range steps {
+	firstWriteIdx := -1
+	for i, step := range steps {
 		action := extractActionName(step.Action)
 
 		// Explicit confirm patterns take priority
 		if h.matchesAny(action, h.confirmPatterns) {
 			writeActions = append(writeActions, step.Action)
+			if firstWriteIdx < 0 {
+				firstWriteIdx = i
+			}
 			continue
 		}
 
@@ -195,16 +200,20 @@ func (h *Handler) checkWriteOnly(steps []StepInfo) CheckResult {
 
 		// Unknown action → assume write (fail-safe)
 		writeActions = append(writeActions, step.Action)
+		if firstWriteIdx < 0 {
+			firstWriteIdx = i
+		}
 	}
 
 	if len(writeActions) > 0 {
 		return CheckResult{
 			RequiresConfirmation: true,
+			ConfirmBeforeStep:    firstWriteIdx,
 			Reason:               "write operations: " + strings.Join(writeActions, ", "),
 			WriteActions:         writeActions,
 		}
 	}
-	return CheckResult{RequiresConfirmation: false, Reason: "all steps are read-only"}
+	return CheckResult{RequiresConfirmation: false, ConfirmBeforeStep: -1, Reason: "all steps are read-only"}
 }
 
 func (h *Handler) matchesAny(action string, patterns []*regexp.Regexp) bool {
