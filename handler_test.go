@@ -34,6 +34,41 @@ func TestCheckConfirmation_WriteOnly_WritePipeline(t *testing.T) {
 	if len(result.WriteActions) != 1 || result.WriteActions[0] != "timly__create-item" {
 		t.Errorf("write_actions = %v, want [timly__create-item]", result.WriteActions)
 	}
+	if result.ConfirmBeforeStep != 1 {
+		t.Errorf("confirm_before_step = %d, want 1 (first write is step 1)", result.ConfirmBeforeStep)
+	}
+}
+
+func TestCheckConfirmation_WriteOnly_ConfirmBeforeStep(t *testing.T) {
+	h := NewHandler()
+	h.mode = "write_only"
+
+	// list → show → delete: confirm before step 2
+	result := h.CheckConfirmation([]StepInfo{
+		{Plugin: "timly", Action: "timly__list-items", Name: "Find item"},
+		{Plugin: "timly", Action: "timly__show-item", Name: "Get details"},
+		{Plugin: "timly", Action: "timly__delete-item", Name: "Delete item"},
+	})
+	if result.ConfirmBeforeStep != 2 {
+		t.Errorf("confirm_before_step = %d, want 2", result.ConfirmBeforeStep)
+	}
+
+	// All read: confirm_before_step = -1
+	result = h.CheckConfirmation([]StepInfo{
+		{Plugin: "timly", Action: "timly__list-items", Name: "List"},
+		{Plugin: "timly", Action: "timly__show-item", Name: "Show"},
+	})
+	if result.ConfirmBeforeStep != -1 {
+		t.Errorf("all-read confirm_before_step = %d, want -1", result.ConfirmBeforeStep)
+	}
+
+	// Write at step 0: confirm before step 0 (confirm everything)
+	result = h.CheckConfirmation([]StepInfo{
+		{Plugin: "timly", Action: "timly__delete-item", Name: "Delete"},
+	})
+	if result.ConfirmBeforeStep != 0 {
+		t.Errorf("first-step-write confirm_before_step = %d, want 0", result.ConfirmBeforeStep)
+	}
 }
 
 func TestCheckConfirmation_WriteOnly_AllWriteActions(t *testing.T) {
